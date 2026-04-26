@@ -1,161 +1,202 @@
 import React, { useState, useEffect } from "react";
 
 export default function Dashboard() {
+  const [busqueda, setBusqueda] = useState("USR-00001");
+  const [idActual, setIdActual] = useState("USR-00001");
   const [cliente, setCliente] = useState(null);
-
+  
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([
-    {
-      sender: "user",
-      text: "¿La tarjeta de crédito Hey Negocios es diferente de la TDC normal?",
-    },
-    {
-      sender: "havi",
-      text: "¡Claro! La Tarjeta de Crédito Hey Negocios está diseñada específicamente para personas que tienen un negocio, ofreciendo beneficios adicionales para financiar compras de tu empresa.",
-    }
+    { sender: "havi", text: "¡Hola! Soy Havi, tu asistente financiero impulsado por IA. ¿En qué te ayudo?" }
   ]);
 
+  const [mostrarPopup, setMostrarPopup] = useState(false);
+  const [prediccion, setPrediccion] = useState(null);
+
   useEffect(() => {
-    fetch("http://localhost:8000/api/cliente/USR-00002")
-      .then((respuesta) => respuesta.json())
-      .then((datos) => {
-        console.log("¡Datos recibidos de Python!", datos);
-        setCliente(datos); 
-      })
-      .catch((error) => console.error("Error al conectar con la API:", error));
-  }, []);
+    fetch(`http://localhost:8000/api/cliente/${idActual}`)
+      .then((res) => res.json())
+      .then((data) => setCliente(data))
+      .catch((err) => console.error("Error:", err));
+  }, [idActual]);
+
+  useEffect(() => {
+    setMostrarPopup(false); 
+    
+    const timer = setTimeout(() => {
+      fetch(`http://localhost:8000/api/prediccion/${idActual}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setPrediccion(data);
+          setMostrarPopup(true);
+        })
+        .catch((err) => console.error("Error IA:", err));
+    }, 3500); 
+
+    return () => clearTimeout(timer);
+  }, [idActual]);
 
   const handleSendMessage = () => {
-    if (message.trim() !== "") {
-      const newUserMsg = { sender: "user", text: message };
-      setChatHistory((prev) => [...prev, newUserMsg]);
+    if (message.trim()) {
+      setChatHistory([...chatHistory, { sender: "user", text: message }]);
       setMessage("");
-
       setTimeout(() => {
-        const haviResponse = { 
-          sender: "havi", 
-          text: "Entiendo tu duda. Por el momento soy un prototipo, pero pronto estaré conectado a la base de datos de Hey Banco para darte una respuesta exacta sobre tus productos." 
-        };
-        setChatHistory((prev) => [...prev, haviResponse]);
+        setChatHistory(prev => [...prev, { sender: "havi", text: "Procesando tu solicitud usando nuestro modelo de IA..." }]);
       }, 1000);
     }
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50">
-      <aside className="w-[30%] bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
-        
-        <section className="p-6 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
-            Perfil del Cliente
-          </h2>
-          
+    <div className="flex h-screen w-full bg-slate-50 relative font-sans text-slate-900">
+      
+      {mostrarPopup && prediccion && (
+        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-300 border border-indigo-100">
+            <div className="flex justify-between items-start mb-4">
+              <div className="bg-indigo-100 p-2 rounded-lg text-indigo-700 font-bold flex items-center gap-2">
+                <span className="animate-pulse h-2 w-2 bg-indigo-600 rounded-full"></span>
+                Insight Predictivo VRNN
+              </div>
+              <button onClick={() => setMostrarPopup(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">{prediccion.mensaje}</p>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-5 shadow-inner">
+              <div className="flex justify-between text-xs text-slate-500 mb-2 uppercase tracking-wider">
+                <span>Comercio / Categoría</span>
+                <span>Monto Est.</span>
+              </div>
+              <div className="flex justify-between font-bold text-sm items-end">
+                <span className="text-indigo-900">{prediccion.comercio}</span>
+                <span className="text-lg text-green-600">{prediccion.monto_estimado}</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setMostrarPopup(false)} className="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold hover:bg-slate-200 text-sm">Ignorar</button>
+              <button onClick={() => setMostrarPopup(false)} className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-md text-sm">Separar Fondeo</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="absolute top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center px-6 justify-between z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-inner">H</div>
+          <h1 className="font-bold text-slate-800 text-lg">Havi</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <input 
+            type="text" 
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && setIdActual(busqueda)}
+            placeholder="Buscar ID (ej: USR-00002)"
+            className="bg-slate-100 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 w-56 outline-none transition-all"
+          />
+          <button 
+            onClick={() => setIdActual(busqueda)}
+            className="bg-slate-900 text-white text-xs px-4 py-2.5 rounded-lg font-bold hover:bg-slate-800 transition-colors shadow-sm"
+          >
+            CARGAR DATOS
+          </button>
+        </div>
+      </div>
+
+      <aside className="w-[30%] bg-white border-r border-slate-200 flex flex-col pt-16 h-full shadow-[4px_0_24px_-15px_rgba(0,0,0,0.1)] z-0">
+        <div className="p-6 flex-1 overflow-y-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Perfil del Cliente</h2>
+            <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] px-2.5 py-1 rounded-md font-bold shadow-sm">
+              CLUSTER {cliente?.cluster || "..."}
+            </span>
+          </div>
+
           {!cliente ? (
-            <div className="text-sm text-gray-500 animate-pulse">Cargando datos desde Python...</div>
+            <div className="space-y-4 animate-pulse mt-4">
+              <div className="h-4 bg-slate-100 rounded w-full"></div>
+              <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+              <div className="h-4 bg-slate-100 rounded w-1/2"></div>
+            </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">ID</span>
-                <span className="text-sm font-medium text-gray-900">{cliente.user_id}</span>
+            <div className="space-y-4 fade-in">
+              <div className="grid grid-cols-1 gap-1">
+                <InfoRow label="ID Usuario" value={cliente.user_id} />
+                <InfoRow label="Ingreso Mensual" value={`$${Number(cliente.ingreso_mensual_n || cliente.ingreso_mensual_neto || cliente.ingreso_mensual_mxn || 0).toLocaleString('es-MX')} MXN`} highlight />
+                <InfoRow label="Score Buró" value={Math.round(cliente.score_buro || 0)} />
+                <InfoRow label="Utilización Crédito" value={`${((cliente.utilizacion_pct || 0.45) * 100).toFixed(1)}%`} alert={(cliente.utilizacion_pct || 0.45) > 0.7} />
+                <InfoRow label="Días sin Actividad" value={`${cliente.dias_desde_u || cliente.dias_desde_ultimo_movimiento || 0} días`} />
+                <InfoRow label="Productos Activos" value={cliente.num_producto || cliente.num_productos_activos || 0} />
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Edad</span>
-                <span className="text-sm font-medium text-gray-900">{cliente.edad} años</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Ocupación</span>
-                <span className="text-sm font-medium text-gray-900">{cliente.ocupacion}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Ingreso</span>
-                <span className="text-sm font-medium text-gray-900">
-                  ${cliente.ingreso_mensual_mxn.toLocaleString()}
-                </span>
-              </div>
-              <div className="pt-2">
-                {cliente.es_hey_pro ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-xs font-semibold shadow-sm">
-                    <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                    Hey Pro Activado
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 text-gray-600 text-xs font-semibold shadow-sm">
-                    Hey Estándar
-                  </span>
-                )}
+
+              <div className="mt-8 space-y-3">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase">Servicios Activos</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <StatusTag label="Hey Pro" active={cliente.es_hey_pro === 1 || String(cliente.es_hey_pro).toLowerCase() === 'true'} />
+                  <StatusTag label="Seguro" active={cliente.tiene_seguro === 1 || String(cliente.tiene_seguro).toLowerCase() === 'true'} />
+                  <StatusTag label="Nómina" active={cliente.nomina_domi === 1 || cliente.nomina_domiciliada === 1} />
+                  <StatusTag label="Remesas" active={cliente.recibe_remes === 1 || cliente.recibe_remesas === 1} />
+                </div>
               </div>
             </div>
           )}
-        </section>
-
-        <section className="p-6 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
-            Mis Productos (Demo)
-          </h2>
-          <div className="flex flex-col gap-3">
-            <div className="p-4 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl text-white">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-white/10 rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
-                    <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">Cuenta de Débito</span>
-              </div>
-              <div className="text-2xl font-bold">$80,954.60</div>
-              <div className="text-xs text-gray-400 mt-1">Saldo disponible</div>
-            </div>
-          </div>
-        </section>
-
+        </div>
       </aside>
-      <main className="w-[70%] flex flex-col">
-        <header className="bg-gray-900 px-6 py-4 shadow-md z-10">
-          <h1 className="text-white text-lg font-semibold flex items-center gap-2">
-            Havi - Asistente Financiero Inteligente
-            <span className="text-xl">🤖</span>
-          </h1>
-        </header>
 
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 bg-gray-100">
-          {chatHistory.map((msg, index) => (
-            <div key={index} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
-              <div 
-                className={`max-w-[70%] px-4 py-3 shadow-sm ${
-                  msg.sender === "user" 
-                  ? "bg-blue-600 text-white rounded-2xl rounded-br-md" 
-                  : "bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-bl-md"
-                }`}
-              >
-                <p className="text-sm">{msg.text}</p>
+      <main className="flex-1 flex flex-col pt-16 bg-[#f8fafc]">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {chatHistory.map((msg, i) => (
+            <div key={i} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2`}>
+              <div className={`max-w-[75%] p-4 rounded-2xl shadow-sm text-sm leading-relaxed ${
+                msg.sender === "user" 
+                  ? "bg-indigo-600 text-white rounded-tr-none" 
+                  : "bg-white border border-slate-200 text-slate-700 rounded-tl-none"
+              }`}>
+                {msg.text}
               </div>
             </div>
           ))}
         </div>
 
-        <div className="p-4 bg-white border-t border-gray-200">
-          <div className="flex items-center gap-3">
-            <input
-              type="text"
+        <div className="p-6 bg-white border-t border-slate-200">
+          <div className="flex gap-3 max-w-4xl mx-auto">
+            <input 
+              type="text" 
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-              placeholder="Escribe tu mensaje a Havi..."
-              className="flex-1 px-4 py-3 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Pregúntale a Havi sobre inversiones, créditos o análisis..."
+              className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-5 py-3 focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm outline-none transition-all"
             />
-            <button
-              onClick={handleSendMessage}
-              className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            <button 
+              onClick={handleSendMessage} 
+              className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md flex items-center justify-center"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" />
-                <path d="m21.854 2.147-10.94 10.939" />
-              </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
             </button>
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function InfoRow({ label, value, highlight, alert }) {
+  return (
+    <div className="flex justify-between items-center py-2.5 border-b border-slate-100 last:border-0">
+      <span className="text-xs text-slate-500 font-medium">{label}</span>
+      <span className={`text-sm font-bold ${highlight ? 'text-green-600' : alert ? 'text-red-500' : 'text-slate-800'}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function StatusTag({ label, active }) {
+  return (
+    <div className={`flex items-center justify-between px-3 py-2 rounded-xl border text-[10px] font-bold shadow-sm transition-colors ${
+      active ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-400'
+    }`}>
+      <span>{label}</span>
+      <div className={`w-2 h-2 rounded-full ${active ? 'bg-green-500' : 'bg-slate-300'}`}></div>
     </div>
   );
 }
